@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>명품 가방 재고 관리</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f5f5f5; color: #333; }
+  .header { background: #1a1a1a; color: #fff; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .header .summary { font-size: 14px; color: #aaa; }
+  .header .summary span { color: #f0c040; font-weight: bold; }
+  .controls { background: #fff; padding: 15px 30px; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .controls input[type="text"] { padding: 8px 14px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; width: 250px; }
+  .controls select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: #fff; }
+  .controls button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .btn-primary { background: #1a1a1a; color: #fff; }
+  .btn-primary:hover { background: #333; }
+  .btn-success { background: #2ecc71; color: #fff; }
+  .btn-success:hover { background: #27ae60; }
+  .btn-danger { background: #e74c3c; color: #fff; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn-outline { background: #fff; color: #333; border: 1px solid #ccc; }
+  .btn-outline:hover { background: #f0f0f0; }
+  .container { padding: 20px 30px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  thead th { background: #fafafa; padding: 12px 16px; text-align: left; font-size: 13px; color: #666; border-bottom: 2px solid #eee; white-space: nowrap; }
+  tbody td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  tbody tr:hover { background: #f9f9f9; }
+  .brand-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; color: #fff; }
+  .brand-therow { background: #8e7cc3; }
+  .brand-fendi { background: #d4a017; }
+  .brand-lv { background: #6b4226; }
+  .brand-bottega { background: #2e7d32; }
+  .brand-goyard { background: #1565c0; }
+  .brand-prada { background: #000; }
+  .brand-chanel { background: #c62828; }
+  .brand-margiela { background: #546e7a; }
+  .qty-control { display: flex; align-items: center; gap: 6px; }
+  .qty-control button { width: 28px; height: 28px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .qty-control button:hover { background: #eee; }
+  .qty-control .qty { width: 40px; text-align: center; font-weight: bold; font-size: 15px; }
+  .status-in { color: #2ecc71; font-weight: bold; }
+  .status-out { color: #e74c3c; font-weight: bold; }
+  .status-low { color: #f39c12; font-weight: bold; }
+  .note-input { border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px 8px; font-size: 13px; width: 120px; }
+  .timestamp { font-size: 12px; color: #999; }
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 30px; width: 400px; max-width: 90%; }
+  .modal h2 { margin-bottom: 20px; font-size: 18px; }
+  .modal label { display: block; margin-bottom: 4px; font-size: 13px; color: #666; margin-top: 12px; }
+  .modal input, .modal select { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+  .modal .btn-row { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+  @media (max-width: 768px) {
+    .controls { padding: 10px 15px; }
+    .container { padding: 10px 15px; }
+    table { font-size: 13px; }
+    thead th, tbody td { padding: 8px 10px; }
+    .controls input[type="text"] { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>HANDBAG INVENTORY</h1>
+  <div class="summary">
+    총 <span id="totalItems">0</span>개 품목 | 재고 있음 <span id="inStockCount">0</span> | 품절 <span id="outStockCount">0</span>
+  </div>
+</div>
+
+<div class="controls">
+  <input type="text" id="searchInput" placeholder="검색 (브랜드, 상품명...)" oninput="renderTable()">
+  <select id="brandFilter" onchange="renderTable()">
+    <option value="">전체 브랜드</option>
+  </select>
+  <select id="statusFilter" onchange="renderTable()">
+    <option value="">전체 상태</option>
+    <option value="in">재고 있음</option>
+    <option value="low">재고 부족</option>
+    <option value="out">품절</option>
+  </select>
+  <button class="btn-primary" onclick="openAddModal()">+ 상품 추가</button>
+  <button class="btn-outline" onclick="exportData()">내보내기 (JSON)</button>
+  <button class="btn-outline" onclick="document.getElementById('importFile').click()">가져오기</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+</div>
+
+<div class="container">
+  <table>
+    <thead>
+      <tr>
+        <th>No.</th>
+        <th>브랜드</th>
+        <th>상품명</th>
+        <th>수량</th>
+        <th>상태</th>
+        <th>메모</th>
+        <th>입고일</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h2 id="modalTitle">상품 추가</h2>
+    <label>브랜드</label>
+    <select id="addBrand">
+      <option>더로우</option><option>펜디</option><option>루이비통</option>
+      <option>보테가</option><option>고야드</option><option>프라다</option>
+      <option>샤넬</option><option>마르지엘라</option><option>기타</option>
+    </select>
+    <label>상품명</label>
+    <input type="text" id="addName" placeholder="예: 마고백">
+    <label>수량</label>
+    <input type="number" id="addQty" value="1" min="0">
+    <label>메모</label>
+    <input type="text" id="addNote" placeholder="색상, 사이즈 등">
+    <div class="btn-row">
+      <button class="btn-outline" onclick="closeAddModal()">취소</button>
+      <button class="btn-primary" id="modalSaveBtn" onclick="addItem()">추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BRAND_CLASS = {
+  '더로우': 'brand-therow', '펜디': 'brand-fendi', '루이비통': 'brand-lv',
+  '보테가': 'brand-bottega', '고야드': 'brand-goyard', '프라다': 'brand-prada',
+  '샤넬': 'brand-chanel', '마르지엘라': 'brand-margiela'
+};
+
+const STORAGE_KEY = 'handbag_inventory';
+let editIndex = -1;
+
+function getDefaultItems() {
+  const raw = [
+    ['더로우', '마고백'],
+    ['더로우', '인디아백'],
+    ['펜디', '맘마백'],
+    ['펜디', '바게트백'],
+    ['루이비통', '네버풀 모노그램'],
+    ['루이비통', '반둘리에 25'],
+    ['루이비통', '반둘리에 35'],
+    ['루이비통', '올인 BB 모노그램'],
+    ['보테가', '파라슈트백'],
+    ['고야드', '하디백 블랙'],
+    ['고야드', '하디백 콤비'],
+    ['고야드', '보헴백 전 칼라'],
+    ['고야드', '생루이 블랙 PM'],
+    ['고야드', '생루이 블랙 GM'],
+    ['고야드', '생루이 콤비 PM'],
+    ['고야드', '생루이 콤비 GM'],
+    ['고야드', '미니앙주 전 칼라'],
+    ['고야드', '클러치 블랙 소'],
+    ['고야드', '클러치 블랙 대'],
+    ['고야드', '클러치 콤비 소'],
+    ['고야드', '클러치 콤비 대'],
+    ['프라다', '서류가방'],
+    ['프라다', '리나일론 레더 백팩'],
+    ['프라다', '소형 리나일론 백팩'],
+    ['프라다', '보스톤 여행가방'],
+    ['프라다', '리나일론 토트백'],
+    ['프라다', '이서진 바이커 전 사이즈'],
+    ['프라다', '테수토 체인스트랩'],
+    ['프라다', '퀼팅 버킷백 베이지'],
+    ['프라다', '버킷백'],
+    ['프라다', '리나일론 사피아노 백팩'],
+    ['프라다', '트래블 파우치'],
+    ['샤넬', '26 제니백'],
+    ['샤넬', '진주 미니백'],
+    ['마르지엘라', '백팩'],
+    ['마르지엘라', '체인백'],
+    ['샤넬', '22백 스몰 블랙'],
+    ['샤넬', '22백 스몰 화이트'],
+    ['샤넬', '22 데님'],
+    ['샤넬', '22백 미니 블랙메탈'],
+    ['샤넬', '22백 미니'],
+    ['샤넬', '22백 미니 블랙'],
+    ['샤넬', 'WOC 전 색상'],
+    ['샤넬', '25 미니체인'],
+    ['샤넬', '26 스몰 쇼핑백'],
+    ['샤넬', '볼링백'],
+    ['샤넬', '체인 베니티'],
+    ['루이비통', '신형 스티머 백팩'],
+    ['루이비통', '델타 슬링백'],
+    ['루이비통', '로우키 메신저'],
+    ['루이비통', '로우키 베니티'],
+    ['고야드', '미니보헴 전 색상'],
+  ];
+  const today = new Date().toISOString().slice(0, 10);
+  return raw.map(([brand, name]) => ({
+    brand, name, qty: 1, note: '', date: today
+  }));
+}
+
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) return JSON.parse(saved);
+  const items = getDefaultItems();
+  saveData(items);
+  return items;
+}
+
+function saveData(items) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function getStatus(qty) {
+  if (qty <= 0) return 'out';
+  if (qty <= 2) return 'low';
+  return 'in';
+}
+
+function statusLabel(s) {
+  if (s === 'out') return '<span class="status-out">품절</span>';
+  if (s === 'low') return '<span class="status-low">부족</span>';
+  return '<span class="status-in">있음</span>';
+}
+
+function renderTable() {
+  const items = loadData();
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const brandF = document.getElementById('brandFilter').value;
+  const statusF = document.getElementById('statusFilter').value;
+
+  const filtered = items.filter((item, i) => {
+    const text = (item.brand + ' ' + item.name + ' ' + item.note).toLowerCase();
+    if (search && !text.includes(search)) return false;
+    if (brandF && item.brand !== brandF) return false;
+    if (statusF && getStatus(item.qty) !== statusF) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = filtered.map((item, fi) => {
+    const ri = items.indexOf(item);
+    const cls = BRAND_CLASS[item.brand] || '';
+    const st = getStatus(item.qty);
+    return `<tr>
+      <td>${ri + 1}</td>
+      <td><span class="brand-tag ${cls}">${item.brand}</span></td>
+      <td>${item.name}</td>
+      <td>
+        <div class="qty-control">
+          <button onclick="changeQty(${ri}, -1)">-</button>
+          <span class="qty">${item.qty}</span>
+          <button onclick="changeQty(${ri}, 1)">+</button>
+        </div>
+      </td>
+      <td>${statusLabel(st)}</td>
+      <td><input class="note-input" value="${item.note}" onchange="updateNote(${ri}, this.value)" placeholder="메모"></td>
+      <td class="timestamp">${item.date}</td>
+      <td>
+        <button class="btn-outline" style="padding:4px 8px;font-size:12px" onclick="openEditModal(${ri})">수정</button>
+        <button class="btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteItem(${ri})">삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Update summary
+  let inStock = 0, outStock = 0;
+  items.forEach(i => { if (i.qty > 0) inStock++; else outStock++; });
+  document.getElementById('totalItems').textContent = items.length;
+  document.getElementById('inStockCount').textContent = inStock;
+  document.getElementById('outStockCount').textContent = outStock;
+
+  // Update brand filter
+  const brands = [...new Set(items.map(i => i.brand))];
+  const bf = document.getElementById('brandFilter');
+  const cur = bf.value;
+  bf.innerHTML = '<option value="">전체 브랜드</option>' + brands.map(b => `<option ${b===cur?'selected':''}>${b}</option>`).join('');
+}
+
+function changeQty(idx, delta) {
+  const items = loadData();
+  items[idx].qty = Math.max(0, items[idx].qty + delta);
+  saveData(items);
+  renderTable();
+}
+
+function updateNote(idx, val) {
+  const items = loadData();
+  items[idx].note = val;
+  saveData(items);
+}
+
+function openAddModal() {
+  editIndex = -1;
+  document.getElementById('modalTitle').textContent = '상품 추가';
+  document.getElementById('modalSaveBtn').textContent = '추가';
+  document.getElementById('addBrand').value = '더로우';
+  document.getElementById('addName').value = '';
+  document.getElementById('addQty').value = '1';
+  document.getElementById('addNote').value = '';
+  document.getElementById('addModal').classList.add('active');
+}
+
+function openEditModal(idx) {
+  editIndex = idx;
+  const items = loadData();
+  const item = items[idx];
+  document.getElementById('modalTitle').textContent = '상품 수정';
+  document.getElementById('modalSaveBtn').textContent = '저장';
+  document.getElementById('addBrand').value = item.brand;
+  document.getElementById('addName').value = item.name;
+  document.getElementById('addQty').value = item.qty;
+  document.getElementById('addNote').value = item.note;
+  document.getElementById('addModal').classList.add('active');
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('active');
+  editIndex = -1;
+}
+
+function addItem() {
+  const brand = document.getElementById('addBrand').value;
+  const name = document.getElementById('addName').value.trim();
+  const qty = parseInt(document.getElementById('addQty').value) || 0;
+  const note = document.getElementById('addNote').value.trim();
+  if (!name) { alert('상품명을 입력하세요'); return; }
+
+  const items = loadData();
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (editIndex >= 0) {
+    items[editIndex] = { brand, name, qty, note, date: items[editIndex].date };
+  } else {
+    items.push({ brand, name, qty, note, date: today });
+  }
+
+  saveData(items);
+  closeAddModal();
+  renderTable();
+}
+
+function deleteItem(idx) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  const items = loadData();
+  items.splice(idx, 1);
+  saveData(items);
+  renderTable();
+}
+
+function exportData() {
+  const items = loadData();
+  const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'handbag_inventory_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const items = JSON.parse(ev.target.result);
+      if (Array.isArray(items)) {
+        saveData(items);
+        renderTable();
+        alert('가져오기 완료: ' + items.length + '개 품목');
+      }
+    } catch { alert('파일 형식 오류'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// Init
+renderTable();
+</script>
+</body>
+</html>
